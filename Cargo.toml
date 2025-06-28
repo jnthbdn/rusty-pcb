@@ -1,0 +1,14 @@
+[package]
+name = "rusty-pcb"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clipper2 = "0.5.2"
+gerber-types = "0.2.0"
+gerber_parser = "0.1.2"
+iced = { version = "0.13.1", features = ["canvas", "image", "async-std"] }
+iced_aw = "0.12.2"
+log = { version = "0.4.27", features = ["std"] }
+rfd = { version = "0.15.3", features = ["async-std", "gtk3"], default-features = false }
+
