@@ -1,37 +1,29 @@
-use std::sync::mpsc::{self, Receiver};
+use std::marker::PhantomData;
 
-use iced::time::{self, Duration};
-use iced::{
-    widget::{center, column, container, mouse_area, opaque, row, stack, text},
-    Color, Element, Length, Padding, Subscription, Task, Theme,
-};
+use iced::widget::center;
+use iced::window;
+use iced::window::Settings;
+use iced::Element;
+use iced::{Subscription, Task, Theme};
+use log::error;
 
-use log::info;
-use ui::{app_menu_bar::AppMenuBar, gerber_canvas::GerberCanvas, message::Message};
-
-use crate::{
-    app_logger::{AppLogger, LogType},
-    ui::{log_console::LogConsole, tab_bar::TabBar},
-};
+use crate::base_window::BaseWindow;
+use crate::ui::main_window::MainWindow;
+use crate::ui::message::MainWindowAction;
+use crate::ui::message::{AppMessage, MainWindowMessage};
 
 mod app_logger;
+mod base_window;
 mod layer;
 mod ui;
 
 pub const VERSION_APP: &str = env!("BUILD_VERSION");
 
 pub fn main() -> iced::Result {
-    iced::application("Rusty PCB", MainWindow::update, MainWindow::view)
-        .subscription(MainWindow::subscription)
-        .theme(MainWindow::theme)
-        .run()
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Copy)]
-enum PcbSides {
-    #[default]
-    OneSide,
-    TwoSide,
+    iced::daemon(AppDaemon::title, AppDaemon::update, AppDaemon::view)
+        .theme(AppDaemon::theme)
+        .subscription(AppDaemon::subscription)
+        .run_with(AppDaemon::new)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
@@ -61,19 +53,89 @@ pub enum AppTheme {
     Ferra,
 }
 
-struct MainWindow {
-    tab_bar: TabBar,
-    gerber_canvas: GerberCanvas,
-    menu_bar: AppMenuBar,
-    console: LogConsole,
+#[derive(Debug)]
+struct AppWindow<MSG, ACT, W: BaseWindow<MSG, ACT>> {
+    id: window::Id,
+    win: W,
 
-    show_loading: bool,
-    log_receiver: Receiver<LogType>,
+    msg: PhantomData<MSG>,
+    act: PhantomData<ACT>,
+}
+
+impl<M, A, W: BaseWindow<M, A>> AppWindow<M, A, W> {
+    pub fn new(id: window::Id, win: W) -> Self {
+        Self {
+            id,
+            win,
+            msg: PhantomData,
+            act: PhantomData,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct AppDaemon {
+    main_win: AppWindow<MainWindowMessage, MainWindowAction, MainWindow>,
+    db_tool_win: Option<AppWindow<MainWindowMessage, MainWindowAction, MainWindow>>,
     theme: AppTheme,
 }
 
-impl MainWindow {
-    fn theme(&self) -> Theme {
+impl AppDaemon {
+    fn new() -> (Self, Task<AppMessage>) {
+        let (win_id, win_task) = window::open(Settings::default());
+        let s: AppDaemon = Self {
+            main_win: AppWindow::new(win_id, MainWindow::new()),
+            db_tool_win: None,
+            theme: Default::default(),
+        };
+
+        (s, win_task.discard())
+    }
+
+    fn title(&self, window_id: window::Id) -> String {
+        if window_id == self.main_win.id {
+            self.main_win.win.title()
+        } else {
+            "===ERROR UNKNOWN WINDOW===".to_string()
+        }
+    }
+
+    fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
+        match message {
+            AppMessage::MainWindow(main_window_message) => {
+                match self.main_win.win.update(main_window_message) {
+                    MainWindowAction::Run(task) => task.map(AppMessage::MainWindow),
+                    MainWindowAction::None => Task::none(),
+                    MainWindowAction::ChangeTheme(app_theme) => {
+                        self.theme = app_theme;
+                        Task::none()
+                    }
+                }
+            }
+            AppMessage::WindowClosed(id) => {
+                if id == self.main_win.id {
+                    iced::exit()
+                } else {
+                    if let Some(win) = self.db_tool_win.take() {
+                        window::close(win.id)
+                    } else {
+                        Task::none()
+                    }
+                }
+            }
+        }
+    }
+
+    fn view(&self, window_id: window::Id) -> Element<'_, AppMessage> {
+        if window_id == self.main_win.id {
+            self.main_win.win.view(self).map(AppMessage::MainWindow)
+        } else {
+            error!("Unknown windows id '{}'.", window_id);
+            center("Bad view").into()
+        }
+    }
+
+    fn theme(&self, _window_id: window::Id) -> Theme {
         match self.theme {
             AppTheme::Dark => Theme::Dark,
             AppTheme::Light => Theme::Light,
@@ -100,103 +162,14 @@ impl MainWindow {
         }
     }
 
-    fn subscription(&self) -> Subscription<Message> {
-        time::every(Duration::from_millis(1000)).map(|_| Message::ReadLogReceiver)
+    fn subscription(&self) -> Subscription<AppMessage> {
+        Subscription::batch([
+            window::close_events().map(AppMessage::WindowClosed),
+            self.main_win.win.subscription().map(AppMessage::MainWindow),
+        ])
     }
 
-    fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
-            Message::GerberCanvas(gerber_canvas_message) => {
-                self.gerber_canvas.update(gerber_canvas_message);
-                Task::none()
-            }
-            Message::TabBar(tab_bar_message) => self.tab_bar.update(tab_bar_message),
-            Message::ShowLoading => {
-                self.show_loading = true;
-                Task::none()
-            }
-            Message::HideLoading => {
-                self.show_loading = false;
-                Task::none()
-            }
-            Message::ReadLogReceiver => {
-                for msg in self.log_receiver.try_iter() {
-                    match msg {
-                        LogType::Info(msg) => self.console.log_message(&msg),
-                        LogType::Warning(msg) => self.console.log_warning(&msg),
-                        LogType::Error(msg) => self.console.log_error(&msg),
-                    };
-                }
-                Task::none()
-            }
-            Message::ChangeTheme(theme) => {
-                self.theme = theme;
-                Task::none()
-            }
-        }
-    }
-
-    fn view(&self) -> Element<'_, Message> {
-        let content = column![
-            column![
-                self.menu_bar.view(&self.theme),
-                row![
-                    self.tab_bar.view().width(Length::FillPortion(6)),
-                    self.gerber_canvas.view().width(Length::FillPortion(3))
-                ]
-                .padding(Padding::new(5.0).top(10))
-                .spacing(5),
-            ]
-            .height(Length::FillPortion(7)),
-            self.console
-                .view()
-                .height(Length::FillPortion(3))
-                .width(Length::Fill)
-        ]
-        .padding(5);
-
-        if self.show_loading {
-            stack![content, self.loading_screen()].into()
-        } else {
-            content.into()
-        }
-    }
-
-    fn loading_screen(&self) -> Element<Message> {
-        opaque(mouse_area(
-            center(opaque(text!("Loading... please wait"))).style(|_theme| container::Style {
-                background: Some(
-                    Color {
-                        a: 0.8,
-                        ..Color::BLACK
-                    }
-                    .into(),
-                ),
-                ..container::Style::default()
-            }),
-        ))
-    }
-}
-
-impl Default for MainWindow {
-    fn default() -> Self {
-        let (tx, rx) = mpsc::channel::<LogType>();
-
-        AppLogger::init(tx, log::LevelFilter::Info).expect("Failed to initialize AppLogger");
-
-        let result = Self {
-            tab_bar: TabBar::default(),
-            gerber_canvas: Default::default(),
-            menu_bar: Default::default(),
-            console: Default::default(),
-            show_loading: Default::default(),
-            log_receiver: rx,
-            theme: Default::default(),
-        };
-
-        info!("Application started !");
-        info!("Version: {}", VERSION_APP);
-
-        result
+    pub fn get_current_theme(&self) -> AppTheme {
+        self.theme
     }
 }

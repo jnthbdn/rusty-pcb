@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use iced::{Point, Task};
+use iced::{advanced::graphics::core::window, Point, Task};
 
 use crate::{
     layer::layer::Layer,
@@ -19,6 +19,7 @@ pub enum CanvasLayer {
 #[derive(Debug)]
 pub enum AppMessage {
     MainWindow(MainWindowMessage),
+    WindowClosed(window::Id),
 }
 
 #[derive(Debug, Clone)]
