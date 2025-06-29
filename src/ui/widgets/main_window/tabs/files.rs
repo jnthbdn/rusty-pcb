@@ -12,10 +12,10 @@ use log::{error, info, warn};
 use crate::{
     layer::layer::Layer,
     ui::{
-        file_picker::{FilePicker, FilePickerAction, FilePickerMessage},
-        message::{CanvasLayer, GerberCanvasMessage, Message, TabBarMessage},
+        main_window::PcbSides,
+        message::{CanvasLayer, GerberCanvasMessage, MainWindowMessage, TabBarMessage},
+        widgets::file_picker::{FilePicker, FilePickerAction, FilePickerMessage},
     },
-    PcbSides,
 };
 
 #[derive(Debug, Clone)]
@@ -24,6 +24,7 @@ pub enum TabFileMessage {
     FilePickerMessage(CanvasLayer, FilePickerMessage),
 }
 
+#[derive(Debug)]
 pub struct Files {
     pcb_sides: PcbSides,
 
@@ -38,7 +39,7 @@ impl Files {
         TabLabel::Text("Files".to_string())
     }
 
-    pub fn update(&mut self, message: TabFileMessage) -> Task<Message> {
+    pub fn update(&mut self, message: TabFileMessage) -> Task<MainWindowMessage> {
         match message {
             TabFileMessage::PcbTypeChange(pcb_sides) => {
                 self.pcb_sides = pcb_sides;
@@ -59,45 +60,50 @@ impl Files {
 
                 match picker.update(file_picker_message) {
                     FilePickerAction::Run(task) => task.map(move |x| {
-                        Message::TabBar(TabBarMessage::TabFileMessage(
+                        MainWindowMessage::TabBar(TabBarMessage::TabFileMessage(
                             TabFileMessage::FilePickerMessage(canvas_layer.clone(), x),
                         ))
                     }),
                     FilePickerAction::None => Task::none(),
-                    FilePickerAction::FileSelected(path_buf) => Task::done(Message::ShowLoading)
-                        .chain(
-                            Task::future(Self::load_file(path_buf, canvas_layer.clone())).then(
-                                move |x| match x {
-                                    Some(new_layer) => {
-                                        info!("Load new file to {:?} layer", canvas_layer.clone());
-                                        Task::done(Message::GerberCanvas(
-                                            GerberCanvasMessage::LoadLayer(
-                                                canvas_layer.clone(),
-                                                new_layer,
-                                            ),
-                                        ))
-                                    }
-                                    None => {
-                                        error!("Failed to load file");
-                                        Task::none()
-                                    }
-                                },
-                            ),
-                        )
-                        .chain(Task::done(Message::HideLoading)),
+                    FilePickerAction::FileSelected(path_buf) => {
+                        Task::done(MainWindowMessage::ShowLoading)
+                            .chain(
+                                Task::future(Self::load_file(path_buf, canvas_layer.clone())).then(
+                                    move |x| match x {
+                                        Some(new_layer) => {
+                                            info!(
+                                                "Load new file to {:?} layer",
+                                                canvas_layer.clone()
+                                            );
+                                            Task::done(MainWindowMessage::GerberCanvas(
+                                                GerberCanvasMessage::LoadLayer(
+                                                    canvas_layer.clone(),
+                                                    new_layer,
+                                                ),
+                                            ))
+                                        }
+                                        None => {
+                                            error!("Failed to load file");
+                                            Task::none()
+                                        }
+                                    },
+                                ),
+                            )
+                            .chain(Task::done(MainWindowMessage::HideLoading))
+                    }
                     FilePickerAction::ClearFile => {
                         warn!("Clear {:?} layer", canvas_layer);
                         match &canvas_layer {
-                            CanvasLayer::Top => Task::done(Message::GerberCanvas(
+                            CanvasLayer::Top => Task::done(MainWindowMessage::GerberCanvas(
                                 GerberCanvasMessage::ClearTopLayer,
                             )),
-                            CanvasLayer::Bottom => Task::done(Message::GerberCanvas(
+                            CanvasLayer::Bottom => Task::done(MainWindowMessage::GerberCanvas(
                                 GerberCanvasMessage::ClearBottomLayer,
                             )),
-                            CanvasLayer::Drill => Task::done(Message::GerberCanvas(
+                            CanvasLayer::Drill => Task::done(MainWindowMessage::GerberCanvas(
                                 GerberCanvasMessage::ClearDrillLayer,
                             )),
-                            CanvasLayer::Outline => Task::done(Message::GerberCanvas(
+                            CanvasLayer::Outline => Task::done(MainWindowMessage::GerberCanvas(
                                 GerberCanvasMessage::ClearOutlineLayer,
                             )),
                         }
@@ -107,17 +113,17 @@ impl Files {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<MainWindowMessage> {
         column![
             "PCB type",
             row![
                 radio("1-side", PcbSides::OneSide, Some(self.pcb_sides), |id| {
-                    Message::TabBar(TabBarMessage::TabFileMessage(
+                    MainWindowMessage::TabBar(TabBarMessage::TabFileMessage(
                         TabFileMessage::PcbTypeChange(id),
                     ))
                 }),
                 radio("2-sides", PcbSides::TwoSide, Some(self.pcb_sides), |id| {
-                    Message::TabBar(TabBarMessage::TabFileMessage(
+                    MainWindowMessage::TabBar(TabBarMessage::TabFileMessage(
                         TabFileMessage::PcbTypeChange(id),
                     ))
                 })
@@ -126,35 +132,40 @@ impl Files {
             .padding(padding::left(20)),
             horizontal_rule(3),
             "Top file",
-            self.top_file_picker.view().map(move |x| Message::TabBar(
-                TabBarMessage::TabFileMessage(TabFileMessage::FilePickerMessage(
-                    CanvasLayer::Top,
-                    x
-                ))
-            )),
+            self.top_file_picker
+                .view()
+                .map(
+                    move |x| MainWindowMessage::TabBar(TabBarMessage::TabFileMessage(
+                        TabFileMessage::FilePickerMessage(CanvasLayer::Top, x)
+                    ))
+                ),
             vertical_space().height(5),
             "Bottom file",
-            self.bot_file_picker.view().map(move |x| Message::TabBar(
-                TabBarMessage::TabFileMessage(TabFileMessage::FilePickerMessage(
-                    CanvasLayer::Bottom,
-                    x
-                ))
-            )),
+            self.bot_file_picker
+                .view()
+                .map(
+                    move |x| MainWindowMessage::TabBar(TabBarMessage::TabFileMessage(
+                        TabFileMessage::FilePickerMessage(CanvasLayer::Bottom, x)
+                    ))
+                ),
             vertical_space().height(5),
             "Drill file",
-            self.drill_file_picker.view().map(move |x| Message::TabBar(
-                TabBarMessage::TabFileMessage(TabFileMessage::FilePickerMessage(
-                    CanvasLayer::Drill,
-                    x
-                ))
-            )),
+            self.drill_file_picker
+                .view()
+                .map(
+                    move |x| MainWindowMessage::TabBar(TabBarMessage::TabFileMessage(
+                        TabFileMessage::FilePickerMessage(CanvasLayer::Drill, x)
+                    ))
+                ),
             vertical_space().height(5),
             "Outline file",
             self.outline_file_picker
                 .view()
-                .map(move |x| Message::TabBar(TabBarMessage::TabFileMessage(
-                    TabFileMessage::FilePickerMessage(CanvasLayer::Outline, x)
-                ))),
+                .map(
+                    move |x| MainWindowMessage::TabBar(TabBarMessage::TabFileMessage(
+                        TabFileMessage::FilePickerMessage(CanvasLayer::Outline, x)
+                    ))
+                ),
         ]
         .spacing(5)
         .into()

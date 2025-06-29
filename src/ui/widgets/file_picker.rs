@@ -22,6 +22,7 @@ pub enum FilePickerAction {
     None,
 }
 
+#[derive(Debug)]
 pub struct FilePicker {
     file: PathBuf,
     is_enable: bool,

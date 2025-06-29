@@ -10,9 +10,10 @@ use iced::{
     Color, Length, Point, Rectangle, Renderer, Theme, Vector,
 };
 
-use crate::{layer::layer::Layer, ui::message::CanvasLayer};
-
-use super::message::{GerberCanvasMessage, Message};
+use crate::{
+    layer::layer::Layer,
+    ui::message::{CanvasLayer, GerberCanvasMessage, MainWindowMessage},
+};
 
 const STEP_ZOOM_MENU: f32 = 0.5;
 const MAX_SCALE: f32 = 100.0;
@@ -47,24 +48,24 @@ pub struct GerberCanvas {
 }
 
 impl GerberCanvas {
-    pub fn view<'a>(&'a self) -> Column<'a, Message> {
+    pub fn view<'a>(&'a self) -> Column<'a, MainWindowMessage> {
         column![
             Canvas::new(self).width(Length::Fill).height(Length::Fill),
             "Layers",
             row![
                 column![
                     checkbox("Bottom", self.show_bot_layer)
-                        .on_toggle(|x| Message::GerberCanvas(GerberCanvasMessage::ShowBotLayer(x))),
+                        .on_toggle(|x| MainWindowMessage::GerberCanvas(GerberCanvasMessage::ShowBotLayer(x))),
                     checkbox("Top", self.show_top_layer)
-                        .on_toggle(|x| Message::GerberCanvas(GerberCanvasMessage::ShowTopLayer(x))),
+                        .on_toggle(|x| MainWindowMessage::GerberCanvas(GerberCanvasMessage::ShowTopLayer(x))),
                 ]
                 .spacing(5),
                 column![
-                    checkbox("Drill", self.show_drill_layer).on_toggle(|x| Message::GerberCanvas(
+                    checkbox("Drill", self.show_drill_layer).on_toggle(|x| MainWindowMessage::GerberCanvas(
                         GerberCanvasMessage::ShowDrillLayer(x)
                     )),
                     checkbox("Outline", self.show_outline_layer).on_toggle(|x| {
-                        Message::GerberCanvas(GerberCanvasMessage::ShowOutlineLayer(x))
+                        MainWindowMessage::GerberCanvas(GerberCanvasMessage::ShowOutlineLayer(x))
                     })
                 ]
                 .spacing(5)
@@ -269,7 +270,7 @@ impl Default for GerberCanvas {
     }
 }
 
-impl canvas::Program<Message> for GerberCanvas {
+impl canvas::Program<MainWindowMessage> for GerberCanvas {
     type State = GerberCanvasInternalState;
 
     fn draw(
@@ -359,7 +360,7 @@ impl canvas::Program<Message> for GerberCanvas {
         event: canvas::Event,
         bounds: iced::Rectangle,
         cursor: iced::advanced::mouse::Cursor,
-    ) -> (Status, Option<Message>) {
+    ) -> (Status, Option<MainWindowMessage>) {
         match event {
             canvas::Event::Mouse(event) => {
                 if let Some(cursor_pos) = cursor.position_in(bounds) {
@@ -378,7 +379,7 @@ impl canvas::Program<Message> for GerberCanvas {
 
                                     return (
                                         Status::Captured,
-                                        Some(Message::GerberCanvas(
+                                        Some(MainWindowMessage::GerberCanvas(
                                             GerberCanvasMessage::Translate {
                                                 delta_x: vect_move.x * modifier,
                                                 delta_y: vect_move.y * modifier,
@@ -408,7 +409,7 @@ impl canvas::Program<Message> for GerberCanvas {
                             | iced::mouse::ScrollDelta::Pixels { x: _, y } => {
                                 return (
                                     Status::Captured,
-                                    Some(Message::GerberCanvas(GerberCanvasMessage::ZoomPointer(
+                                    Some(MainWindowMessage::GerberCanvas(GerberCanvasMessage::ZoomPointer(
                                         y * self.scale_speed,
                                         cursor_pos,
                                     ))),

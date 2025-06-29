@@ -1,7 +1,7 @@
 use iced::{widget::text, Element};
 use iced_aw::TabLabel;
 
-use crate::ui::message::Message;
+use crate::ui::message::MainWindowMessage;
 
 #[derive(Debug, Default)]
 pub struct Drilling {}
@@ -11,7 +11,7 @@ impl Drilling {
         TabLabel::Text("Drilling".to_string())
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<MainWindowMessage> {
         text("Drilling panel").into()
     }
 }

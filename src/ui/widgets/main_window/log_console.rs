@@ -5,7 +5,7 @@ use iced::{
     Color, Length,
 };
 
-use crate::ui::message::Message;
+use crate::ui::message::MainWindowMessage;
 
 #[derive(Debug, Clone)]
 enum LogConsoleInput {
@@ -14,6 +14,7 @@ enum LogConsoleInput {
     Error(String),
 }
 
+#[derive(Debug)]
 pub struct LogConsole {
     logs_input: VecDeque<LogConsoleInput>,
     max_inputs: usize,
@@ -56,7 +57,7 @@ impl LogConsole {
         }
     }
 
-    pub fn view<'a>(&'a self) -> Container<'a, Message> {
+    pub fn view<'a>(&'a self) -> Container<'a, MainWindowMessage> {
         let mut texts_col = Column::new();
 
         for entry in &self.logs_input {

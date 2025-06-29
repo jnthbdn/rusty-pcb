@@ -2,8 +2,8 @@ use iced::Task;
 use iced_aw::Tabs;
 
 use crate::ui::{
-    message::{Message, TabBarMessage},
-    tabs::{drilling::Drilling, files::Files, milling::Milling},
+    message::{MainWindowMessage, TabBarMessage},
+    widgets::main_window::tabs::{drilling::Drilling, files::Files, milling::Milling},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,7 +12,7 @@ pub enum TabBarId {
     Milling,
     Drilling,
 }
-
+#[derive(Debug)]
 pub struct TabBar {
     files: Files,
     milling: Milling,
@@ -22,7 +22,7 @@ pub struct TabBar {
 }
 
 impl TabBar {
-    pub fn update(&mut self, message: TabBarMessage) -> Task<Message> {
+    pub fn update(&mut self, message: TabBarMessage) -> Task<MainWindowMessage> {
         match message {
             TabBarMessage::TabSelected(tab_bar_id) => {
                 self.active_tab = tab_bar_id;
@@ -32,8 +32,8 @@ impl TabBar {
         }
     }
 
-    pub fn view(&self) -> Tabs<Message, TabBarId> {
-        Tabs::new(|id| Message::TabBar(TabBarMessage::TabSelected(id)))
+    pub fn view(&self) -> Tabs<MainWindowMessage, TabBarId> {
+        Tabs::new(|id| MainWindowMessage::TabBar(TabBarMessage::TabSelected(id)))
             .push(TabBarId::Files, self.files.tab_label(), self.files.view())
             .push(
                 TabBarId::Milling,
