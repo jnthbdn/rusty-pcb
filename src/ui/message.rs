@@ -1,8 +1,10 @@
-use iced::Point;
+use std::fmt::Debug;
+
+use iced::{Point, Task};
 
 use crate::{
     layer::layer::Layer,
-    ui::{tab_bar::TabBarId, tabs::files::TabFileMessage},
+    ui::widgets::main_window::{tab_bar::TabBarId, tabs::files::TabFileMessage},
     AppTheme,
 };
 
@@ -14,15 +16,39 @@ pub enum CanvasLayer {
     Outline,
 }
 
+#[derive(Debug)]
+pub enum AppMessage {
+    MainWindow(MainWindowMessage),
+}
+
 #[derive(Debug, Clone)]
-pub enum Message {
+pub enum MainWindowMessage {
     ShowLoading,
     HideLoading,
     ReadLogReceiver,
     ChangeTheme(AppTheme),
 
+    OpenToolDB,
+
     GerberCanvas(GerberCanvasMessage),
     TabBar(TabBarMessage),
+}
+
+pub enum MainWindowAction {
+    Run(Task<MainWindowMessage>),
+    None,
+
+    ChangeTheme(AppTheme),
+}
+
+impl Debug for MainWindowAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Run(_) => write!(f, "Run"),
+            Self::None => write!(f, "None"),
+            Self::ChangeTheme(arg0) => f.debug_tuple("ChangeTheme").field(arg0).finish(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
