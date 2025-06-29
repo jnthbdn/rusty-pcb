@@ -81,7 +81,7 @@ impl BaseWindow<MainWindowMessage, MainWindowAction> for MainWindow {
     }
 
     fn subscription(&self) -> Subscription<MainWindowMessage> {
-        time::every(Duration::from_millis(1000)).map(|_| MainWindowMessage::ReadLogReceiver)
+        time::every(Duration::from_millis(250)).map(|_| MainWindowMessage::ReadLogReceiver)
     }
 
     fn update(&mut self, message: MainWindowMessage) -> MainWindowAction {
