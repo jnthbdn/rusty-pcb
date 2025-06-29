@@ -4,7 +4,7 @@ use iced::{
     widget::{button, container, row, text, text_input, tooltip},
     Length, Task,
 };
-use log::info;
+use log::{info, warn};
 
 static mut LAST_FOLDER: Option<PathBuf> = None;
 
@@ -28,6 +28,7 @@ pub struct FilePicker {
     is_enable: bool,
     filter_name: String,
     filter_pattern: Vec<String>,
+    is_open: bool,
 }
 
 impl FilePicker {
@@ -41,28 +42,40 @@ impl FilePicker {
             is_enable: true,
             filter_name,
             filter_pattern,
+            is_open: false,
         }
     }
 
     pub fn update(&mut self, msg: FilePickerMessage) -> FilePickerAction {
         match msg {
-            FilePickerMessage::BrowseFile => FilePickerAction::Run(Task::perform(
-                Self::pick_file(self.filter_name.clone(), self.filter_pattern.clone()),
-                move |x| FilePickerMessage::OnFileDialogClose(x),
-            )),
+            FilePickerMessage::BrowseFile => {
+                if self.is_open == false {
+                    self.is_open = true;
+                    FilePickerAction::Run(Task::perform(
+                        Self::pick_file(self.filter_name.clone(), self.filter_pattern.clone()),
+                        move |x| FilePickerMessage::OnFileDialogClose(x),
+                    ))
+                } else {
+                    warn!("File explorer already open");
+                    FilePickerAction::None
+                }
+            }
             FilePickerMessage::ClearFile => {
                 self.file = PathBuf::new();
                 FilePickerAction::ClearFile
             }
-            FilePickerMessage::OnFileDialogClose(path_buf) => match path_buf {
-                Some(path_buf) => {
-                    self.file = path_buf.clone();
-                    Self::set_last_path(path_buf.clone());
+            FilePickerMessage::OnFileDialogClose(path_buf) => {
+                self.is_open = false;
+                match path_buf {
+                    Some(path_buf) => {
+                        self.file = path_buf.clone();
+                        Self::set_last_path(path_buf.clone());
 
-                    FilePickerAction::FileSelected(path_buf)
+                        FilePickerAction::FileSelected(path_buf)
+                    }
+                    None => FilePickerAction::None,
                 }
-                None => FilePickerAction::None,
-            },
+            }
         }
     }
 
